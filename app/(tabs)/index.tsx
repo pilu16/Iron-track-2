@@ -89,6 +89,8 @@ export default function TodayScreen() {
   const [extraData, setExtraData] = useState<TodayData | null>(null);
   const [extraLoading, setExtraLoading] = useState(true);
   const [selectedDow, setSelectedDow] = useState<number | null>(null);
+  const [manualDayId, setManualDayId] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -211,6 +213,8 @@ export default function TodayScreen() {
       refetch();
       loadExtraData();
       setSelectedDow(null);
+      setManualDayId(null);
+      setShowPicker(false);
     }, [refetch, loadExtraData])
   );
 
@@ -239,9 +243,11 @@ export default function TodayScreen() {
     return null;
   };
 
-  const displayDay = selectedDow !== null
-    ? programDayForDow(selectedDow) ?? todayDay
-    : todayDay;
+  const manualDay = manualDayId
+    ? (program?.program_days.find((d) => d.id === manualDayId) ?? null)
+    : null;
+
+  const displayDay = manualDay ?? (selectedDow !== null ? programDayForDow(selectedDow) : todayDay);
 
   const completedDayIds = new Set((extraData?.weekSessions ?? []).map((s) => s.program_day_id));
 
@@ -328,20 +334,22 @@ export default function TodayScreen() {
           const isCompleted = dayProgram ? completedDayIds.has(dayProgram.id) : false;
           const hasSession = !!dayProgram;
           const isPast = date < now && !isToday;
-          const isSelected = hasSession && !isToday && selectedDow === dow;
+          const isSelected = !isToday && selectedDow === dow;
           return (
             <TouchableOpacity
               key={i}
-              disabled={!hasSession}
               activeOpacity={0.7}
               onPress={() => {
-                if (!dayProgram) return;
-                setSelectedDow((prev) => prev === dow ? null : dow);
+                const newDow = selectedDow === dow ? null : dow;
+                setSelectedDow(newDow);
+                setManualDayId(null);
+                if (newDow !== null && !programDayForDow(newDow)) setShowPicker(true);
+                else setShowPicker(false);
               }}
               style={[
                 styles.weekCell,
                 isToday && styles.weekCellToday,
-                isSelected && !isToday && styles.weekCellSelected,
+                isSelected && styles.weekCellSelected,
               ]}
             >
               <Text style={[styles.weekDayLetter, isToday && styles.weekDayLetterToday, isSelected && !isToday && styles.weekDayLetterSelected]}>
@@ -362,15 +370,38 @@ export default function TodayScreen() {
         })}
       </View>
 
-      {!displayDay ? (
+      {showPicker && !manualDay ? (
+        <View style={styles.pickerCard}>
+          <Text style={styles.pickerTitle}>CHOISIR UNE SÉANCE</Text>
+          {[...program.program_days]
+            .sort((a, b) => a.day_order - b.day_order)
+            .map((d) => (
+              <TouchableOpacity
+                key={d.id}
+                style={styles.pickerOption}
+                onPress={() => { setManualDayId(d.id); setShowPicker(false); }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.pickerOptionLeft}>
+                  <Text style={styles.pickerOptionName}>{d.name.toUpperCase()}</Text>
+                  <Text style={styles.pickerOptionMeta}>{d.program_exercises.length} EXOS</Text>
+                </View>
+                <Text style={styles.pickerChevron}>→</Text>
+              </TouchableOpacity>
+            ))}
+        </View>
+      ) : !displayDay ? (
         <View style={styles.restCard}>
           <Text style={styles.restTitle}>REPOS.</Text>
-          <Text style={styles.restText}>Pas de séance prévue aujourd'hui. Appuie sur un jour pour en choisir un.</Text>
+          <Text style={styles.restText}>Pas de séance prévue. Appuie sur un jour ou démarre une séance libre.</Text>
+          <TouchableOpacity style={styles.pickerTrigger} onPress={() => setShowPicker(true)}>
+            <Text style={styles.pickerTriggerText}>+ FAIRE UNE SÉANCE</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.todayCard}>
           <Text style={styles.todayLabel}>
-            {selectedDow !== null && selectedDow !== todayDow
+            {manualDay || (selectedDow !== null && selectedDow !== todayDow)
               ? displayDay.name.toUpperCase()
               : "AUJOURD'HUI"}
           </Text>
@@ -406,6 +437,12 @@ export default function TodayScreen() {
             activeOpacity={0.85}
           >
             <Text style={styles.startBtnText}>▶ DÉMARRER LA SÉANCE</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.changeSeanceBtn}
+            onPress={() => { setManualDayId(null); setShowPicker(true); }}
+          >
+            <Text style={styles.changeSeanceBtnText}>CHANGER DE SÉANCE →</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -550,6 +587,7 @@ const styles = StyleSheet.create({
     borderColor: BORDER,
     padding: 24,
     gap: 8,
+    marginBottom: 16,
   },
   restTitle: { fontFamily: FONT_MONO_BOLD, fontSize: 28, color: TEXT_PRIMARY, letterSpacing: 3 },
   restText: { fontFamily: FONT_MONO, fontSize: 11, color: TEXT_SECONDARY, letterSpacing: 1.5 },
@@ -606,6 +644,53 @@ const styles = StyleSheet.create({
   todayStatUnit: { fontFamily: FONT_MONO, fontSize: 10, color: TEXT_SECONDARY },
   startBtn: { backgroundColor: ACCENT, paddingVertical: 16, alignItems: 'center' },
   startBtnText: { fontFamily: FONT_MONO_BOLD, fontSize: 13, color: BACKGROUND, letterSpacing: 3 },
+  changeSeanceBtn: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
+  changeSeanceBtnText: { fontFamily: FONT_MONO, fontSize: 10, color: TEXT_SECONDARY, letterSpacing: 2 },
+
+  pickerCard: {
+    marginHorizontal: 16,
+    backgroundColor: SURFACE,
+    borderWidth: 1,
+    borderColor: BORDER,
+    marginBottom: 16,
+  },
+  pickerTitle: {
+    fontFamily: FONT_MONO_BOLD,
+    fontSize: 9,
+    color: TEXT_SECONDARY,
+    letterSpacing: 3,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+  pickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+  pickerOptionLeft: { gap: 3 },
+  pickerOptionName: { fontFamily: FONT_MONO_BOLD, fontSize: 14, color: TEXT_PRIMARY, letterSpacing: 1 },
+  pickerOptionMeta: { fontFamily: FONT_MONO, fontSize: 9, color: TEXT_SECONDARY, letterSpacing: 1 },
+  pickerChevron: { fontFamily: FONT_MONO_BOLD, fontSize: 16, color: ACCENT },
+  pickerTrigger: {
+    borderWidth: 1,
+    borderColor: ACCENT,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  pickerTriggerText: { fontFamily: FONT_MONO_BOLD, fontSize: 11, color: ACCENT, letterSpacing: 2 },
 
   sectionBlock: {
     marginHorizontal: 16,
