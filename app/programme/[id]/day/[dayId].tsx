@@ -349,17 +349,14 @@ export default function DayDetailScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              <FlatList
-                style={{ flex: 1 }}
-                data={filtered}
-                keyExtractor={(e) => e.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.libItem} onPress={() => setSelectedExercise(item)} activeOpacity={0.7}>
+              <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled">
+                {filtered.map((item) => (
+                  <TouchableOpacity key={item.id} style={styles.libItem} onPress={() => setSelectedExercise(item)} activeOpacity={0.7}>
                     <Text style={styles.libName}>{item.name.toUpperCase()}</Text>
                     <Text style={styles.libMeta}>{item.muscle_group?.toUpperCase()}</Text>
                   </TouchableOpacity>
-                )}
-              />
+                ))}
+              </ScrollView>
             </View>
           ) : (
             <ScrollView contentContainerStyle={styles.configForm} keyboardShouldPersistTaps="handled">

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  FlatList, ActivityIndicator, Alert,
+  FlatList, ActivityIndicator, Alert, Modal, ScrollView,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
@@ -20,8 +20,13 @@ export default function ProgramDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [programName, setProgramName] = useState('');
+  const [progType, setProgType] = useState<'double' | 'linear' | 'rep_per_session'>('double');
   const [days, setDays] = useState<ProgramDay[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editProgType, setEditProgType] = useState<'double' | 'linear' | 'rep_per_session'>('double');
+  const [saving, setSaving] = useState(false);
   const [addingDay, setAddingDay] = useState(false);
   const [newDayName, setNewDayName] = useState('');
   const [newDayWeekdays, setNewDayWeekdays] = useState<string[]>([]);
@@ -30,17 +35,37 @@ export default function ProgramDetailScreen() {
   const loadProgram = useCallback(async () => {
     const { data } = await supabase
       .from('programs')
-      .select('name, program_days(*, program_exercises(id))')
+      .select('name, progression_type, program_days(*, program_exercises(id))')
       .eq('id', id)
       .single();
     if (data) {
       setProgramName(data.name);
+      setProgType((data as any).progression_type ?? 'double');
       setDays((data.program_days as ProgramDay[]).sort((a, b) => a.day_order - b.day_order));
     }
     setLoading(false);
   }, [id]);
 
   useEffect(() => { loadProgram(); }, [loadProgram]);
+
+  function openEdit() {
+    setEditName(programName);
+    setEditProgType(progType);
+    setEditModalVisible(true);
+  }
+
+  async function saveEdit() {
+    if (!editName.trim()) return;
+    setSaving(true);
+    await supabase.from('programs').update({
+      name: editName.trim().toUpperCase(),
+      progression_type: editProgType,
+    }).eq('id', id);
+    setProgramName(editName.trim().toUpperCase());
+    setProgType(editProgType);
+    setSaving(false);
+    setEditModalVisible(false);
+  }
 
   function toggleWeekday(key: string) {
     setNewDayWeekdays((prev) =>
@@ -87,9 +112,14 @@ export default function ProgramDetailScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.back}>← RETOUR</Text>
-        </TouchableOpacity>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={styles.back}>← RETOUR</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={openEdit}>
+            <Text style={styles.editBtn}>MODIFIER ✎</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.title}>{programName.toUpperCase()}</Text>
         <Text style={styles.subtitle}>{days.length} SÉANCE{days.length !== 1 ? 'S' : ''}</Text>
       </View>
@@ -173,6 +203,66 @@ export default function ProgramDetailScreen() {
           </TouchableOpacity>
         )}
       />
+
+      <Modal visible={editModalVisible} animationType="slide" onRequestClose={() => setEditModalVisible(false)}>
+        <View style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+              <Text style={styles.back}>✕ FERMER</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>MODIFIER LE PROGRAMME</Text>
+          </View>
+          <ScrollView contentContainerStyle={styles.modalForm} keyboardShouldPersistTaps="handled">
+            <View style={styles.field}>
+              <Text style={styles.label}>NOM DU PROGRAMME</Text>
+              <TextInput
+                style={styles.input}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="NOM DU PROGRAMME"
+                placeholderTextColor={TEXT_SECONDARY}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>TYPE DE PROGRESSION</Text>
+              <View style={styles.optionRow}>
+                {([
+                  { value: 'double' as const, label: 'DOUBLE', sub: 'Poids +X kg quand toutes les séries réussies' },
+                  { value: 'linear' as const, label: 'LINÉAIRE', sub: 'Poids augmente toutes les semaines' },
+                  { value: 'rep_per_session' as const, label: 'REP / SÉANCE', sub: '+1 répétition à chaque séance' },
+                ]).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.option, editProgType === opt.value && styles.optionActive]}
+                    onPress={() => setEditProgType(opt.value)}
+                  >
+                    <Text style={[styles.optionLabel, editProgType === opt.value && styles.optionLabelActive]}>
+                      {opt.label}
+                    </Text>
+                    <Text style={[styles.optionSub, editProgType === opt.value && styles.optionSubActive]}>
+                      {opt.sub}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.saveBtn, saving && { opacity: 0.5 }]}
+              onPress={saveEdit}
+              disabled={saving}
+              activeOpacity={0.85}
+            >
+              {saving
+                ? <ActivityIndicator color={BACKGROUND} />
+                : <Text style={styles.saveBtnText}>ENREGISTRER →</Text>
+              }
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -181,7 +271,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BACKGROUND },
   center: { flex: 1, backgroundColor: BACKGROUND, justifyContent: 'center', alignItems: 'center' },
   header: { paddingHorizontal: 16, paddingTop: 60, paddingBottom: 24, gap: 8 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   back: { fontFamily: FONT_MONO, fontSize: 11, color: TEXT_SECONDARY, letterSpacing: 2 },
+  editBtn: { fontFamily: FONT_MONO_BOLD, fontSize: 11, color: ACCENT, letterSpacing: 2 },
   title: { fontFamily: FONT_MONO_BOLD, fontSize: 28, color: TEXT_PRIMARY, letterSpacing: 2 },
   subtitle: { fontFamily: FONT_MONO, fontSize: 11, color: TEXT_SECONDARY, letterSpacing: 2 },
   list: { paddingHorizontal: 16, paddingBottom: 40, gap: 8 },
@@ -217,4 +309,19 @@ const styles = StyleSheet.create({
   btnPrimaryText: { fontFamily: FONT_MONO_BOLD, fontSize: 11, color: BACKGROUND, letterSpacing: 1.5 },
   btnSecondary: { flex: 1, borderWidth: 1, borderColor: BORDER, paddingVertical: 14, alignItems: 'center' },
   btnSecondaryText: { fontFamily: FONT_MONO_BOLD, fontSize: 11, color: TEXT_PRIMARY, letterSpacing: 1.5 },
+
+  modal: { flex: 1, backgroundColor: BACKGROUND },
+  modalHeader: { paddingHorizontal: 16, paddingTop: 60, paddingBottom: 16, gap: 12 },
+  modalTitle: { fontFamily: FONT_MONO_BOLD, fontSize: 22, color: TEXT_PRIMARY, letterSpacing: 2 },
+  modalForm: { paddingHorizontal: 16, paddingBottom: 40, gap: 20 },
+  field: { gap: 8 },
+  optionRow: { gap: 6 },
+  option: { borderWidth: 1, borderColor: BORDER, backgroundColor: SURFACE, padding: 12, gap: 3 },
+  optionActive: { backgroundColor: ACCENT, borderColor: ACCENT },
+  optionLabel: { fontFamily: FONT_MONO_BOLD, fontSize: 11, color: TEXT_SECONDARY, letterSpacing: 1.5 },
+  optionLabelActive: { color: BACKGROUND },
+  optionSub: { fontFamily: FONT_MONO, fontSize: 10, color: TEXT_SECONDARY, letterSpacing: 0.5 },
+  optionSubActive: { color: BACKGROUND },
+  saveBtn: { backgroundColor: ACCENT, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+  saveBtnText: { fontFamily: FONT_MONO_BOLD, fontSize: 13, color: BACKGROUND, letterSpacing: 2 },
 });
