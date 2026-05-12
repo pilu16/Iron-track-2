@@ -684,13 +684,12 @@ const styles = StyleSheet.create({
   pickerOptionMeta: { fontFamily: FONT_MONO, fontSize: 9, color: TEXT_SECONDARY, letterSpacing: 1 },
   pickerChevron: { fontFamily: FONT_MONO_BOLD, fontSize: 16, color: ACCENT },
   pickerTrigger: {
-    borderWidth: 1,
-    borderColor: ACCENT,
-    paddingVertical: 12,
+    backgroundColor: ACCENT,
+    paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
   },
-  pickerTriggerText: { fontFamily: FONT_MONO_BOLD, fontSize: 11, color: ACCENT, letterSpacing: 2 },
+  pickerTriggerText: { fontFamily: FONT_MONO_BOLD, fontSize: 11, color: BACKGROUND, letterSpacing: 2 },
 
   sectionBlock: {
     marginHorizontal: 16,

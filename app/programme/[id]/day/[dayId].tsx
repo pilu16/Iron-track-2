@@ -314,7 +314,7 @@ export default function DayDetailScreen() {
           </View>
 
           {!selectedExercise ? (
-            <>
+            <View style={{ flex: 1 }}>
               <TextInput
                 style={styles.searchInput}
                 value={search}
@@ -350,6 +350,7 @@ export default function DayDetailScreen() {
                 ))}
               </ScrollView>
               <FlatList
+                style={{ flex: 1 }}
                 data={filtered}
                 keyExtractor={(e) => e.id}
                 renderItem={({ item }) => (
@@ -359,7 +360,7 @@ export default function DayDetailScreen() {
                   </TouchableOpacity>
                 )}
               />
-            </>
+            </View>
           ) : (
             <ScrollView contentContainerStyle={styles.configForm} keyboardShouldPersistTaps="handled">
               <View style={styles.selectedBadge}>

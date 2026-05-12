@@ -90,7 +90,7 @@ export default function ProgramDetailScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.back}>← RETOUR</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>{programName}</Text>
+        <Text style={styles.title}>{programName.toUpperCase()}</Text>
         <Text style={styles.subtitle}>{days.length} SÉANCE{days.length !== 1 ? 'S' : ''}</Text>
       </View>
 
