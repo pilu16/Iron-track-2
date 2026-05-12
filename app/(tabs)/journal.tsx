@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -62,6 +62,8 @@ export default function JournalScreen() {
   const router = useRouter();
   const [weeks, setWeeks] = useState<WeekGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const isMountedRef = useRef(true);
 
   const loadSessions = useCallback(async () => {
@@ -152,23 +154,14 @@ export default function JournalScreen() {
     }
   }, []);
 
-  function deleteSession(sessionId: string) {
-    Alert.alert(
-      'SUPPRIMER LA SÉANCE',
-      'Cette séance sera définitivement supprimée.',
-      [
-        { text: 'ANNULER', style: 'cancel' },
-        {
-          text: 'SUPPRIMER',
-          style: 'destructive',
-          onPress: async () => {
-            await supabase.from('session_sets').delete().eq('session_id', sessionId);
-            await supabase.from('sessions').delete().eq('id', sessionId);
-            loadSessions();
-          },
-        },
-      ]
-    );
+  async function confirmDelete() {
+    if (!pendingDeleteId) return;
+    setDeleting(true);
+    await supabase.from('session_sets').delete().eq('session_id', pendingDeleteId);
+    await supabase.from('sessions').delete().eq('id', pendingDeleteId);
+    setDeleting(false);
+    setPendingDeleteId(null);
+    loadSessions();
   }
 
   useFocusEffect(
@@ -253,7 +246,7 @@ export default function JournalScreen() {
 
                   <TouchableOpacity
                     style={styles.deleteCol}
-                    onPress={() => deleteSession(session.id)}
+                    onPress={() => setPendingDeleteId(session.id)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <Text style={styles.deleteColText}>✕</Text>
@@ -264,6 +257,30 @@ export default function JournalScreen() {
           </View>
         ))
       )}
+
+      <Modal visible={!!pendingDeleteId} transparent animationType="fade" onRequestClose={() => setPendingDeleteId(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>SUPPRIMER LA SÉANCE ?</Text>
+            <Text style={styles.modalBody}>Cette séance sera définitivement supprimée.</Text>
+            <TouchableOpacity
+              style={[styles.modalBtnDanger, deleting && { opacity: 0.5 }]}
+              onPress={confirmDelete}
+              disabled={deleting}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modalBtnDangerText}>SUPPRIMER</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalBtnCancel}
+              onPress={() => setPendingDeleteId(null)}
+              disabled={deleting}
+            >
+              <Text style={styles.modalBtnCancelText}>ANNULER</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -418,4 +435,19 @@ const styles = StyleSheet.create({
     color: ACCENT,
     letterSpacing: 1,
   },
+
+  modalOverlay: {
+    flex: 1, backgroundColor: '#000000CC',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  modalBox: {
+    backgroundColor: SURFACE, borderWidth: 1, borderColor: HAZARD,
+    padding: 24, width: '100%', gap: 16,
+  },
+  modalTitle: { fontFamily: FONT_MONO_BOLD, fontSize: 14, color: TEXT_PRIMARY, letterSpacing: 2 },
+  modalBody: { fontFamily: FONT_MONO, fontSize: 11, color: TEXT_SECONDARY, letterSpacing: 1 },
+  modalBtnDanger: { backgroundColor: HAZARD, paddingVertical: 14, alignItems: 'center' },
+  modalBtnDangerText: { fontFamily: FONT_MONO_BOLD, fontSize: 12, color: '#FFFFFF', letterSpacing: 2 },
+  modalBtnCancel: { borderWidth: 1, borderColor: BORDER, paddingVertical: 14, alignItems: 'center' },
+  modalBtnCancelText: { fontFamily: FONT_MONO_BOLD, fontSize: 12, color: TEXT_SECONDARY, letterSpacing: 2 },
 });
